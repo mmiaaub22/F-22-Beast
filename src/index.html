@@ -1,0 +1,1133 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Manipulation Vulnerability Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        .attack-dashboard {
+            display: grid;
+            grid-template-rows: 80px 1fr 60px;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 10px;
+            background: #ff0000;
+            color: #fff;
+            z-index: 1000;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        .connection-status.connected { 
+            background: #00ff00; 
+            color: #000; 
+        }
+
+        /* Header Styles */
+        .control-panel {
+            background: #111;
+            border-bottom: 1px solid #333;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .target-input-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #targetUrl {
+            width: 400px;
+            padding: 8px;
+            background: #000;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            font-family: inherit;
+            border-radius: 3px;
+        }
+
+        button {
+            padding: 8px 20px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            border-radius: 3px;
+            font-family: inherit;
+        }
+
+        button:hover {
+            background: #00cc00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        button:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .scan-config {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        select, input[type="number"], input[type="text"] {
+            padding: 8px;
+            background: #000;
+            border: 1px solid #333;
+            color: #00ff00;
+            font-family: inherit;
+            border-radius: 3px;
+        }
+
+        /* Main Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr 400px;
+            gap: 10px;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        /* Control Center */
+        .control-center {
+            background: #111;
+            border: 1px solid #333;
+            padding: 15px;
+            overflow-y: auto;
+            border-radius: 5px;
+        }
+
+        .engine {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 15px;
+            margin-bottom: 10px;
+            position: relative;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .engine:hover {
+            border-color: #00ff00;
+        }
+
+        .engine h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-indicator.active {
+            background: #00ff00;
+            animation: pulse 1s infinite;
+        }
+
+        .status-indicator.error {
+            background: #ff0000;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.5); }
+        }
+
+        .engine-progress {
+            margin: 10px 0;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00cc00);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .engine-details {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .vulnerability-summary {
+            margin-top: 15px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border: 1px solid #333;
+        }
+
+        .vulnerability-summary h4 {
+            color: #ffff00;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .vuln-count {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+
+        .vuln-count .count {
+            font-weight: bold;
+        }
+
+        .critical { color: #ff0000; }
+        .high { color: #ff4400; }
+        .medium { color: #ffaa00; }
+        .low { color: #ffff00; }
+
+        /* Logs Section */
+        .logs-section {
+            background: #111;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            border-radius: 5px;
+        }
+
+        .log-tabs {
+            display: flex;
+            border-bottom: 1px solid #333;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: none;
+            border-right: 1px solid #333;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+
+        .log-viewer {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 11px;
+            line-height: 1.5;
+            max-height: 300px;
+            min-height: 200px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 8px;
+            background: #0a0a0a;
+            border-left: 3px solid #333;
+            border-radius: 3px;
+            animation: logAppear 0.3s ease;
+        }
+
+        @keyframes logAppear {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry.success { border-left-color: #00ff00; }
+        .log-entry.error { border-left-color: #ff0000; }
+        .log-entry.info { border-left-color: #00ffff; }
+        .log-entry.warning { border-left-color: #ffaa00; }
+        .log-entry.critical { border-left-color: #ff0000; background: #2a0000; }
+
+        .timestamp {
+            color: #666;
+            margin-right: 10px;
+            font-size: 10px;
+        }
+
+        .engine-tag {
+            color: #ffff00;
+            margin-right: 10px;
+            font-weight: bold;
+            font-size: 10px;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 2px;
+        }
+
+        .vulnerability-details {
+            padding: 15px;
+            border-top: 1px solid #333;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .vulnerability-details h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #ffff00;
+        }
+
+        .vuln-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: #0a0a0a;
+            border-radius: 3px;
+            border-left: 3px solid #333;
+        }
+
+        .vuln-item.critical { border-left-color: #ff0000; }
+        .vuln-item.high { border-left-color: #ff4400; }
+        .vuln-item.medium { border-left-color: #ffaa00; }
+        .vuln-item.low { border-left-color: #ffff00; }
+
+        .vuln-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .vuln-title {
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .severity-badge {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .severity-badge.critical {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        .severity-badge.high {
+            background: #ff4400;
+            color: #fff;
+        }
+
+        .severity-badge.medium {
+            background: #ffaa00;
+            color: #000;
+        }
+
+        .severity-badge.low {
+            background: #ffff00;
+            color: #000;
+        }
+
+        .vuln-description {
+            font-size: 11px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+
+        .vuln-technical {
+            font-size: 10px;
+            color: #666;
+            font-family: monospace;
+            background: #111;
+            padding: 5px;
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+
+        .exploitation-level {
+            margin-top: 8px;
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .exploitation-level.exploitable {
+            background: #ff0000;
+            color: #fff;
+        }
+
+        .exploitation-level.potential {
+            background: #ffaa00;
+            color: #000;
+        }
+
+        .exploitation-level.theoretical {
+            background: #666;
+            color: #fff;
+        }
+
+        /* Browser Section */
+        .browser-section {
+            background: #111;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            border-radius: 5px;
+        }
+
+        .browser-controls {
+            display: flex;
+            padding: 10px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .browser-controls button {
+            padding: 5px 10px;
+            min-width: 35px;
+            font-size: 12px;
+        }
+
+        #browserUrl {
+            flex: 1;
+            padding: 5px 10px;
+            background: #000;
+            border: 1px solid #333;
+            color: #00ff00;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+
+        .mini-browser {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: #0a0a0a;
+            position: relative;
+        }
+
+        .browser-frame-container {
+            width: 375px;
+            height: 600px;
+            border: 2px solid #333;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+            background: #000;
+            position: relative;
+        }
+
+        #targetFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #fff;
+        }
+
+        .attack-console {
+            height: 120px;
+            background: #0a0a0a;
+            border-top: 1px solid #333;
+        }
+
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 10px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            font-size: 12px;
+        }
+
+        .console-output {
+            padding: 10px;
+            font-size: 11px;
+            overflow-y: auto;
+            height: 85px;
+            color: #00ffff;
+            font-family: 'Courier New', monospace;
+            line-height: 1.4;
+        }
+
+        /* Footer Controls */
+        .advanced-controls {
+            background: #111;
+            border-top: 1px solid #333;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .advanced-controls > div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .advanced-controls label {
+            font-size: 12px;
+            color: #666;
+            min-width: 80px;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+
+        #delayValue {
+            font-size: 12px;
+            color: #ffff00;
+            min-width: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="attack-dashboard">
+        <!-- Connection Status -->
+        <div class="connection-status" id="connectionStatus">CONNECTING...</div>
+
+        <!-- Header Section -->
+        <header class="control-panel">
+            <div class="target-input-section">
+                <input type="url" id="targetUrl" placeholder="Enter target URL (e.g., https://shop.example.com)" value="">
+                <button id="initiateScan">SCAN FOR VULNERABILITIES</button>
+            </div>
+            
+            <div class="scan-config">
+                <select id="scanDepth">
+                    <option value="surface">Surface Scan</option>
+                    <option value="deep">Deep Scan</option>
+                    <option value="aggressive">Aggressive Scan</option>
+                </select>
+                
+                <input type="number" id="targetPrice" placeholder="Target Price ($)" step="0.01" value="0.99">
+                
+                <select id="payloadType">
+                    <option value="all">All Payloads</option>
+                    <option value="sql">SQL Injection</option>
+                    <option value="parameter">Parameter Tampering</option>
+                    <option value="api">API Exploitation</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="dashboard-grid">
+            <!-- Left Panel: Control Center -->
+            <section class="control-center">
+                <div class="engine-controls">
+                    <div class="engine" id="engine1">
+                        <h3>ENGINE 1: VULNERABILITY DISCOVERY</h3>
+                        <div class="status-indicator" id="engine1-status"></div>
+                        <div class="engine-progress">
+                            <div class="progress-bar" id="progress-engine1"></div>
+                        </div>
+                        <button class="engine-toggle" data-engine="1" disabled>START</button>
+                        <div class="engine-details">
+                            <div>Status: <span id="engine1-detail">Waiting for target</span></div>
+                            <div>Task: <span id="engine1-task">Ready</span></div>
+                            <div>Found: <span id="engine1-found">0 vulnerabilities</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="engine" id="engine2">
+                        <h3>ENGINE 2: EXPLOITATION</h3>
+                        <div class="status-indicator" id="engine2-status"></div>
+                        <div class="engine-progress">
+                            <div class="progress-bar" id="progress-engine2"></div>
+                        </div>
+                        <button class="engine-toggle" data-engine="2" disabled>START</button>
+                        <div class="engine-details">
+                            <div>Status: <span id="engine2-detail">Waiting</span></div>
+                            <div>Exploits: <span id="engine2-exploits">0 ready</span></div>
+                            <div>Success: <span id="engine2-success">0%</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="engine" id="engine3">
+                        <h3>ENGINE 3: PRICE MANIPULATION</h3>
+                        <div class="status-indicator" id="engine3-status"></div>
+                        <div class="engine-progress">
+                            <div class="progress-bar" id="progress-engine3"></div>
+                        </div>
+                        <button class="engine-toggle" data-engine="3" disabled>START</button>
+                        <div class="engine-details">
+                            <div>Status: <span id="engine3-detail">Waiting</span></div>
+                            <div>Manipulation: <span id="engine3-manipulation">Not attempted</span></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="vulnerability-summary">
+                    <h4>VULNERABILITY SUMMARY</h4>
+                    <div class="vuln-count">
+                        <span>Critical:</span>
+                        <span class="count critical" id="criticalCount">0</span>
+                    </div>
+                    <div class="vuln-count">
+                        <span>High:</span>
+                        <span class="count high" id="highCount">0</span>
+                    </div>
+                    <div class="vuln-count">
+                        <span>Medium:</span>
+                        <span class="count medium" id="mediumCount">0</span>
+                    </div>
+                    <div class="vuln-count">
+                        <span>Low:</span>
+                        <span class="count low" id="lowCount">0</span>
+                    </div>
+                    <div class="vuln-count">
+                        <span>Exploitable:</span>
+                        <span class="count critical" id="exploitableCount">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center Panel: Logs & Vulnerability Details -->
+            <section class="logs-section">
+                <div class="log-tabs">
+                    <button class="tab active" data-tab="all">ALL LOGS</button>
+                    <button class="tab" data-tab="discovery">DISCOVERY</button>
+                    <button class="tab" data-tab="exploitation">EXPLOITATION</button>
+                    <button class="tab" data-tab="critical">CRITICAL</button>
+                </div>
+                
+                <div class="log-viewer" id="logViewer">
+                    <div class="log-entry info">
+                        <span class="timestamp">[00:00:00]</span>
+                        <span class="engine-tag">SYSTEM</span>
+                        <span class="message">Price manipulation vulnerability scanner initialized. Ready for target analysis.</span>
+                    </div>
+                </div>
+                
+                <div class="vulnerability-details">
+                    <h3>VULNERABILITY DETAILS</h3>
+                    <div id="vulnerabilityList">
+                        <div style="color: #666; font-size: 11px; text-align: center; padding: 20px;">
+                            No vulnerabilities discovered yet. Start a scan to analyze the target.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Target Analysis -->
+            <section class="browser-section">
+                <div class="browser-controls">
+                    <button id="browserBack">←</button>
+                    <button id="browserForward">→</button>
+                    <button id="browserRefresh">↻</button>
+                    <input type="text" id="browserUrl" readonly placeholder="Target URL will appear here">
+                    <button id="analyzePage">ANALYZE</button>
+                    <button id="exploitTarget">EXPLOIT</button>
+                </div>
+                
+                <div class="mini-browser">
+                    <div class="browser-frame-container">
+                        <iframe id="targetFrame" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation"></iframe>
+                    </div>
+                </div>
+                
+                <div class="attack-console">
+                    <div class="console-header">
+                        <span>EXPLOITATION CONSOLE</span>
+                        <button id="clearConsole">CLEAR</button>
+                    </div>
+                    <div class="console-output" id="consoleOutput">
+                        <div>> Exploitation console ready</div>
+                        <div>> Waiting for vulnerability discovery...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Panel: Advanced Controls -->
+        <footer class="advanced-controls">
+            <div class="scan-options">
+                <label>SCAN INTENSITY:</label>
+                <input type="range" id="scanIntensity" min="1" max="10" value="5">
+                <span id="intensityValue">5</span>
+            </div>
+            
+            <div class="timing-controls">
+                <label>REQUEST DELAY:</label>
+                <input type="range" id="requestDelay" min="100" max="5000" value="1000">
+                <span id="delayValue">1000ms</span>
+            </div>
+            
+            <div class="proxy-controls">
+                <label>STEALTH MODE:</label>
+                <select id="stealthMode">
+                    <option value="off">Disabled</option>
+                    <option value="basic">Basic</option>
+                    <option value="advanced">Advanced</option>
+                </select>
+            </div>
+            
+            <div class="export-controls">
+                <button id="exportReport">EXPORT REPORT</button>
+                <button id="saveSession">SAVE SESSION</button>
+                <button id="emergencyStop" style="background: #ff0000;">STOP ALL</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        class PriceManipulationScanner {
+            constructor() {
+                this.targetUrl = '';
+                this.websocket = null;
+                this.vulnerabilities = [];
+                this.exploitableVulns = [];
+                this.scanResults = {};
+                this.engineStatus = { 1: false, 2: false, 3: false };
+                
+                this.initializeWebSocket();
+                this.initializeEventListeners();
+            }
+
+            initializeWebSocket() {
+                try {
+                    // Connect to backend WebSocket
+                    this.websocket = new WebSocket('ws://localhost:3000');
+                    
+                    this.websocket.onopen = () => {
+                        this.updateConnectionStatus('connected');
+                        this.log('Backend connection established', 'SYSTEM', 'success');
+                    };
+                    
+                    this.websocket.onmessage = (event) => {
+                        this.handleWebSocketMessage(JSON.parse(event.data));
+                    };
+                    
+                    this.websocket.onclose = () => {
+                        this.updateConnectionStatus('disconnected');
+                        this.log('Backend connection lost', 'SYSTEM', 'error');
+                    };
+                    
+                } catch (error) {
+                    this.updateConnectionStatus('disconnected');
+                    this.log('Failed to connect to backend: ' + error.message, 'SYSTEM', 'error');
+                }
+            }
+
+            initializeEventListeners() {
+                // Scan initiation
+                document.getElementById('initiateScan').addEventListener('click', () => {
+                    this.startVulnerabilityScan();
+                });
+
+                // Engine controls
+                document.querySelectorAll('.engine-toggle').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const engine = parseInt(e.target.dataset.engine);
+                        this.toggleEngine(engine);
+                    });
+                });
+
+                // Browser controls
+                document.getElementById('analyzePage').addEventListener('click', () => {
+                    this.analyzePage();
+                });
+
+                document.getElementById('exploitTarget').addEventListener('click', () => {
+                    this.initiateExploitation();
+                });
+
+                // Control sliders
+                document.getElementById('scanIntensity').addEventListener('input', (e) => {
+                    document.getElementById('intensityValue').textContent = e.target.value;
+                });
+
+                document.getElementById('requestDelay').addEventListener('input', (e) => {
+                    document.getElementById('delayValue').textContent = e.target.value + 'ms';
+                });
+
+                // Emergency stop
+                document.getElementById('emergencyStop').addEventListener('click', () => {
+                    this.emergencyStop();
+                });
+            }
+
+            startVulnerabilityScan() {
+                const targetUrl = document.getElementById('targetUrl').value;
+                if (!targetUrl) {
+                    this.log('Please enter a target URL', 'SYSTEM', 'error');
+                    return;
+                }
+
+                this.targetUrl = targetUrl;
+                document.getElementById('browserUrl').value = targetUrl;
+                document.getElementById('targetFrame').src = targetUrl;
+
+                this.log(`Starting vulnerability scan on: ${targetUrl}`, 'SYSTEM', 'info');
+                
+                // Send scan request to backend
+                this.sendToBackend({
+                    type: 'start_vulnerability_scan',
+                    data: {
+                        targetUrl: targetUrl,
+                        scanDepth: document.getElementById('scanDepth').value,
+                        payloadType: document.getElementById('payloadType').value,
+                        intensity: document.getElementById('scanIntensity').value
+                    }
+                });
+
+                // Enable Engine 1
+                document.querySelector('[data-engine="1"]').disabled = false;
+                this.toggleEngine(1);
+            }
+
+            handleWebSocketMessage(message) {
+                switch (message.type) {
+                    case 'vulnerability_found':
+                        this.handleVulnerabilityFound(message.data);
+                        break;
+                    case 'scan_progress':
+                        this.handleScanProgress(message.data);
+                        break;
+                    case 'exploitation_result':
+                        this.handleExploitationResult(message.data);
+                        break;
+                    case 'log_entry':
+                        this.log(message.message, message.source, message.level);
+                        break;
+                    case 'scan_complete':
+                        this.handleScanComplete(message.data);
+                        break;
+                }
+            }
+
+            handleVulnerabilityFound(vulnData) {
+                this.vulnerabilities.push(vulnData);
+                
+                this.log(`${vulnData.severity} vulnerability found: ${vulnData.title}`, 'ENGINE 1', vulnData.severity.toLowerCase());
+                
+                this.addVulnerabilityToList(vulnData);
+                this.updateVulnerabilityCounts();
+
+                // Check if it's exploitable for price manipulation
+                if (vulnData.priceManipulationPotential) {
+                    this.exploitableVulns.push(vulnData);
+                    this.log(`EXPLOITABLE: ${vulnData.title} can be used for price manipulation`, 'ENGINE 1', 'critical');
+                }
+            }
+
+            handleScanProgress(progressData) {
+                const { engine, progress, task, details } = progressData;
+                
+                this.updateProgress(engine, progress);
+                this.updateEngineTask(engine, task);
+                
+                if (details) {
+                    this.updateEngineDetails(engine, details);
+                }
+            }
+
+            handleScanComplete(results) {
+                this.scanResults = results;
+                this.log(`Vulnerability scan completed. Found ${this.vulnerabilities.length} vulnerabilities, ${this.exploitableVulns.length} exploitable`, 'ENGINE 1', 'success');
+                
+                if (this.exploitableVulns.length > 0) {
+                    // Enable Engine 2
+                    document.querySelector('[data-engine="2"]').disabled = false;
+                    this.log('Price manipulation vectors discovered. Engine 2 ready for exploitation.', 'SYSTEM', 'warning');
+                }
+
+                this.updateEngineDetails(1, {
+                    found: this.vulnerabilities.length + ' vulnerabilities'
+                });
+            }
+
+            addVulnerabilityToList(vuln) {
+                const vulnList = document.getElementById('vulnerabilityList');
+                
+                // Clear "no vulnerabilities" message on first vuln
+                if (this.vulnerabilities.length === 1) {
+                    vulnList.innerHTML = '';
+                }
+
+                const vulnElement = document.createElement('div');
+                vulnElement.className = `vuln-item ${vuln.severity.toLowerCase()}`;
+                vulnElement.innerHTML = `
+                    <div class="vuln-header">
+                        <div class="vuln-title">${vuln.title}</div>
+                        <div class="severity-badge ${vuln.severity.toLowerCase()}">${vuln.severity}</div>
+                    </div>
+                    <div class="vuln-description">${vuln.description}</div>
+                    <div class="vuln-technical">
+                        <strong>Endpoint:</strong> ${vuln.endpoint || 'Multiple'}<br>
+                        <strong>Method:</strong> ${vuln.method || 'N/A'}<br>
+                        <strong>Parameter:</strong> ${vuln.parameter || 'N/A'}
+                    </div>
+                    ${vuln.priceManipulationPotential ? 
+                        `<div class="exploitation-level exploitable">⚠️ EXPLOITABLE FOR PRICE MANIPULATION</div>` :
+                        `<div class="exploitation-level ${vuln.exploitability}">${vuln.exploitability.toUpperCase()}</div>`
+                    }
+                `;
+
+                vulnList.appendChild(vulnElement);
+            }
+
+            updateVulnerabilityCounts() {
+                const counts = { critical: 0, high: 0, medium: 0, low: 0, exploitable: 0 };
+                
+                this.vulnerabilities.forEach(vuln => {
+                    counts[vuln.severity.toLowerCase()]++;
+                    if (vuln.priceManipulationPotential) {
+                        counts.exploitable++;
+                    }
+                });
+
+                document.getElementById('criticalCount').textContent = counts.critical;
+                document.getElementById('highCount').textContent = counts.high;
+                document.getElementById('mediumCount').textContent = counts.medium;
+                document.getElementById('lowCount').textContent = counts.low;
+                document.getElementById('exploitableCount').textContent = counts.exploitable;
+            }
+
+            toggleEngine(engineNum) {
+                const button = document.querySelector(`[data-engine="${engineNum}"]`);
+                const statusIndicator = document.getElementById(`engine${engineNum}-status`);
+                
+                if (this.engineStatus[engineNum]) {
+                    // Stop engine
+                    this.engineStatus[engineNum] = false;
+                    button.textContent = 'START';
+                    statusIndicator.classList.remove('active');
+                    this.log(`Engine ${engineNum} stopped`, `ENGINE ${engineNum}`, 'info');
+                } else {
+                    // Start engine
+                    this.engineStatus[engineNum] = true;
+                    button.textContent = 'STOP';
+                    statusIndicator.classList.add('active');
+                    this.log(`Engine ${engineNum} started`, `ENGINE ${engineNum}`, 'success');
+                    
+                    this.runEngine(engineNum);
+                }
+            }
+
+            runEngine(engineNum) {
+                switch(engineNum) {
+                    case 1:
+                        this.updateEngineDetails(1, { detail: 'Scanning for vulnerabilities' });
+                        // Engine 1 is handled by backend WebSocket messages
+                        break;
+                    case 2:
+                        if (this.exploitableVulns.length === 0) {
+                            this.log('No exploitable vulnerabilities found. Cannot start Engine 2.', 'ENGINE 2', 'error');
+                            this.toggleEngine(2);
+                            return;
+                        }
+                        this.startExploitation();
+                        break;
+                    case 3:
+                        this.startPriceManipulation();
+                        break;
+                }
+            }
+
+            startExploitation() {
+                this.log('Preparing exploitation payloads...', 'ENGINE 2', 'info');
+                this.updateEngineDetails(2, { detail: 'Preparing exploits' });
+
+                this.sendToBackend({
+                    type: 'start_exploitation',
+                    data: {
+                        vulnerabilities: this.exploitableVulns,
+                        targetPrice: document.getElementById('targetPrice').value,
+                        targetUrl: this.targetUrl
+                    }
+                });
+            }
+
+            startPriceManipulation() {
+                this.log('Initiating price manipulation attack...', 'ENGINE 3', 'critical');
+                this.updateEngineDetails(3, { detail: 'Manipulating prices' });
+
+                this.sendToBackend({
+                    type: 'start_price_manipulation',
+                    data: {
+                        targetUrl: this.targetUrl,
+                        targetPrice: document.getElementById('targetPrice').value,
+                        exploits: this.exploitableVulns
+                    }
+                });
+            }
+
+            handleExploitationResult(result) {
+                if (result.success) {
+                    this.log(`Exploitation successful: ${result.description}`, 'ENGINE 2', 'success');
+                    this.updateEngineDetails(2, { 
+                        exploits: result.exploitsReady + ' ready',
+                        success: result.successRate + '%'
+                    });
+
+                    // Enable Engine 3
+                    document.querySelector('[data-engine="3"]').disabled = false;
+                    
+                    // Log to console
+                    this.consoleLog(`> Exploitation successful`);
+                    this.consoleLog(`> ${result.description}`);
+                    this.consoleLog(`> Price manipulation ready`);
+                    
+                } else {
+                    this.log(`Exploitation failed: ${result.error}`, 'ENGINE 2', 'error');
+                    this.consoleLog(`> Exploitation failed: ${result.error}`);
+                }
+            }
+
+            sendToBackend(data) {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(JSON.stringify(data));
+                } else {
+                    this.log('Backend connection not available', 'SYSTEM', 'error');
+                }
+            }
+
+            updateConnectionStatus(status) {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.className = `connection-status ${status}`;
+                statusElement.textContent = status.toUpperCase();
+            }
+
+            updateProgress(engine, percent) {
+                const progressBar = document.getElementById(`progress-engine${engine}`);
+                progressBar.style.width = percent + '%';
+            }
+
+            updateEngineTask(engine, task) {
+                const taskElement = document.getElementById(`engine${engine}-task`);
+                if (taskElement) {
+                    taskElement.textContent = task;
+                }
+            }
+
+            updateEngineDetails(engine, details) {
+                Object.keys(details).forEach(key => {
+                    const element = document.getElementById(`engine${engine}-${key}`);
+                    if (element) {
+                        element.textContent = details[key];
+                    }
+                });
+            }
+
+            log(message, source, level) {
+                const timestamp = new Date().toTimeString().split(' ')[0];
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${level}`;
+                logEntry.dataset.source = source.toLowerCase().replace(' ', '');
+                logEntry.innerHTML = `
+                    <span class="timestamp">[${timestamp}]</span>
+                    <span class="engine-tag">${source}</span>
+                    <span class="message">${message}</span>
+                `;
+                
+                const logViewer = document.getElementById('logViewer');
+                logViewer.appendChild(logEntry);
+                logViewer.scrollTop = logViewer.scrollHeight;
+            }
+
+            consoleLog(message) {
+                const output = document.getElementById('consoleOutput');
+                const line = document.createElement('div');
+                line.textContent = message;
+                output.appendChild(line);
+                output.scrollTop = output.scrollHeight;
+            }
+
+            emergencyStop() {
+                this.log('EMERGENCY STOP ACTIVATED', 'SYSTEM', 'critical');
+                
+                // Stop all engines
+                for (let i = 1; i <= 3; i++) {
+                    if (this.engineStatus[i]) {
+                        this.toggleEngine(i);
+                    }
+                }
+
+                // Notify backend
+                this.sendToBackend({
+                    type: 'emergency_stop',
+                    data: { reason: 'User initiated emergency stop' }
+                });
+            }
+
+            analyzePage() {
+                this.log('Analyzing current page structure...', 'ANALYZER', 'info');
+                this.consoleLog('> Analyzing page for price elements...');
+                this.consoleLog('> Checking form parameters...');
+                this.consoleLog('> Scanning for API endpoints...');
+            }
+
+            initiateExploitation() {
+                if (this.exploitableVulns.length === 0) {
+                    this.log('No exploitable vulnerabilities found', 'SYSTEM', 'error');
+                    return;
+                }
+
+                this.log('Manual exploitation initiated', 'MANUAL', 'warning');
+                this.consoleLog('> Manual exploitation started...');
+                
+                // Enable Engine 2 if not already enabled
+                if (!this.engineStatus[2]) {
+                    document.querySelector('[data-engine="2"]').disabled = false;
+                }
+            }
+        }
+
+        // Initialize the scanner
+        document.addEventListener('DOMContentLoaded', () => {
+            window.scanner = new PriceManipulationScanner();
+        });
+    </script>
+</body>
+</html>
